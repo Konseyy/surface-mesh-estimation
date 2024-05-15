@@ -17,7 +17,7 @@ pub fn by_marching_cubes(
     tree: &KdTree<CartesianCoordinate>,
     voxel_size: usize,
     use_interp: bool,
-) -> Vec<Triangle> {
+) -> (Vec<Triangle>, (usize, usize, usize)) {
     // find the furthest point in each cartesian dimension
     let max_x = coordinates
         .iter()
@@ -396,7 +396,7 @@ pub fn by_marching_cubes(
 
     println!("Triangles: {:?}", triangles.len());
 
-    return triangles;
+    return (triangles, max_mm_dimensions);
 }
 
 fn interp_vert_pos(

@@ -30,8 +30,15 @@ pub fn by_nearest_points(
     let time_start = Instant::now();
     let tree = KdTree::par_build_by_ordered_float(coordinates.clone());
 
-    let triangles = by_marching_cubes(coordinates, &tree, 20, true);
-    draw_triangles(triangles);
+    let (triangles, dimensions_mm) = by_marching_cubes(coordinates, &tree, 20, true);
+    let max_dist = usize::max(
+        dimensions_mm.0,
+        usize::max(dimensions_mm.1, dimensions_mm.2),
+    ) as f32
+        * 0.95;
+
+    println!("Drawing triangles {:?}", max_dist);
+    draw_triangles(triangles, max_dist);
 
     let elapsed_tree_constr = time_start.elapsed();
     println!("KD tree construction took {:.2?}", elapsed_tree_constr);

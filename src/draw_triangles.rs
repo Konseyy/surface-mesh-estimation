@@ -20,7 +20,7 @@ struct Vertex {
 
 implement_vertex!(Vertex, position, normal);
 
-pub fn draw_triangles(triangles: Vec<Triangle>) {
+pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
     let events_loop = glutin::event_loop::EventLoop::new();
     let window = glutin::window::WindowBuilder::new()
         .with_title("Render output")
@@ -148,6 +148,10 @@ pub fn draw_triangles(triangles: Vec<Triangle>) {
                         }
                         key_rotate_right = true;
                     }
+                    Some(VirtualKeyCode::T) => {
+                        camera = Vec3::new(0., 0., START_VIEW_HEIGHT);
+                        look_at = Vec3::new(10., 10., START_VIEW_HEIGHT);
+                    }
                     _ => (),
                 }
             }
@@ -241,6 +245,7 @@ pub fn draw_triangles(triangles: Vec<Triangle>) {
             let uniforms = uniform! {
                 model_view_projection: Into::<[[f32; 4]; 4]>::into(projection  * view),
                 show_normals: if show_normals { 1f32 } else { 0f32 },
+                max_distance: max_light_distance,
             };
 
             let polygon_mode = PolygonMode::Fill;
