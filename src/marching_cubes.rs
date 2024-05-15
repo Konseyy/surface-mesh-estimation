@@ -1,27 +1,44 @@
 use kd_tree::KdTree;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::{
+    iter::{IntoParallelRefIterator, ParallelIterator},
+    prelude::*,
+};
 
-use crate::utils::{CartesianCoordinate, ProcessedPixels, TextCoords, Vec3};
+use crate::utils::{CartesianCoordinate, TextCoords, Vec3};
+
+#[derive(Default, Copy, Clone, Debug)]
+pub struct Triangle {
+    pub vertices: [[f32; 3]; 3],
+    pub normal: [f32; 3],
+}
 
 pub fn by_marching_cubes(
     coordinates: &Vec<CartesianCoordinate>,
     tree: &KdTree<CartesianCoordinate>,
-) -> ProcessedPixels {
+    voxel_size: usize,
+    use_interp: bool,
+) -> Vec<Triangle> {
     // find the furthest point in each cartesian dimension
     let max_x = coordinates
         .iter()
         .map(|c| c.vec_coord.x)
-        .fold(0., |x1, x2| f32::max(f32::abs(x1), f32::abs(x2)));
+        .fold(coordinates[0].vec_coord.x, |x1, x2| {
+            f32::max(f32::abs(x1), f32::abs(x2))
+        });
 
     let max_y = coordinates
         .iter()
         .map(|c| c.vec_coord.y)
-        .fold(0., |y1, y2| f32::max(f32::abs(y1), f32::abs(y2)));
+        .fold(coordinates[0].vec_coord.y, |y1, y2| {
+            f32::max(f32::abs(y1), f32::abs(y2))
+        });
 
     let max_z = coordinates
         .iter()
         .map(|c| c.vec_coord.z)
-        .fold(0., |z1, z2| f32::max(f32::abs(z1), f32::abs(z2)));
+        .fold(coordinates[0].vec_coord.z, |z1, z2| {
+            f32::max(f32::abs(z1), f32::abs(z2))
+        });
 
     // this will form the dimensions of the grid
     let max_mm_dimensions = (
@@ -30,16 +47,34 @@ pub fn by_marching_cubes(
         max_z.ceil() as usize,
     );
 
+    let min_x = coordinates
+        .iter()
+        .map(|c| c.vec_coord.x)
+        .fold(coordinates[0].vec_coord.x, |x1, x2| f32::min(x1, x2));
+
+    let min_y = coordinates
+        .iter()
+        .map(|c| c.vec_coord.y)
+        .fold(coordinates[0].vec_coord.y, |y1, y2| f32::min(y1, y2));
+
+    let min_z = coordinates
+        .iter()
+        .map(|c| c.vec_coord.z)
+        .fold(coordinates[0].vec_coord.z, |z1, z2| f32::min(z1, z2));
+
+    let min_mm_dimensions = (min_x as i32, min_y as i32, min_z as i32);
+
+    println!("Min dimensions: {:?}", min_mm_dimensions);
+
     println!("Max dimensions: {:?}", max_mm_dimensions);
 
     // mm
-    const VOXEL_SIZE: usize = 50;
 
     // * 2 because we want to have the grid centered around the origin
     let grid_dimensions = (
-        (max_mm_dimensions.0 * 2) / VOXEL_SIZE,
-        (max_mm_dimensions.1 * 2) / VOXEL_SIZE,
-        (max_mm_dimensions.2 * 2) / VOXEL_SIZE,
+        (max_mm_dimensions.0 * 2) / voxel_size,
+        (max_mm_dimensions.1 * 2) / voxel_size,
+        (max_mm_dimensions.2 * 2) / voxel_size,
     );
 
     println!("Grid dimensions: {:?}", grid_dimensions);
@@ -65,9 +100,9 @@ pub fn by_marching_cubes(
             //  based on how many LiDAR data points are in the sphere around it
             let grid_point = Vec3::new(
                 // Get the appropriate cartesian coordinate for the grid point
-                (((x_grid) * VOXEL_SIZE) as i64 - (max_mm_dimensions.0) as i64) as f32,
-                (((y_grid) * VOXEL_SIZE) as i64 - (max_mm_dimensions.1) as i64) as f32,
-                (((z_grid) * VOXEL_SIZE) as i64 - (max_mm_dimensions.2) as i64) as f32,
+                ((x_grid * voxel_size) as i64 - (max_mm_dimensions.0) as i64) as f32,
+                ((y_grid * voxel_size) as i64 - (max_mm_dimensions.1) as i64) as f32,
+                ((z_grid * voxel_size) as i64 - (max_mm_dimensions.2) as i64) as f32,
             );
             if *x_grid == 0 && *y_grid == 0 && *z_grid == 0 {
                 println!(
@@ -88,7 +123,7 @@ pub fn by_marching_cubes(
                     vec_coord: grid_point,
                     from_text: TextCoords { x: 0, y: 0 },
                 },
-                (VOXEL_SIZE / 2) as f32,
+                (voxel_size / 2) as f32,
             );
 
             return ((x_grid, y_grid, z_grid), density.len());
@@ -96,11 +131,16 @@ pub fn by_marching_cubes(
         .collect::<Vec<((&usize, &usize, &usize), usize)>>();
 
     // Sort the results by the grid coordinates
-    vertex_densities.sort_by(|a, b| {
+    vertex_densities.par_sort_by(|a, b| {
         let idx_1 = get_grid_index(grid_dimensions, *a.0 .0, *a.0 .1, *a.0 .2);
         let idx_2 = get_grid_index(grid_dimensions, *b.0 .0, *b.0 .1, *b.0 .2);
         return idx_1.cmp(&idx_2);
     });
+    // vertex_densities.sort_by(|a, b| {
+    //     let idx_1 = get_grid_index(grid_dimensions, *a.0 .0, *a.0 .1, *a.0 .2);
+    //     let idx_2 = get_grid_index(grid_dimensions, *b.0 .0, *b.0 .1, *b.0 .2);
+    //     return idx_1.cmp(&idx_2);
+    // });
 
     let max_dens = vertex_densities
         .iter()
@@ -118,54 +158,270 @@ pub fn by_marching_cubes(
     println!("Average density: {:?}", avg_dens);
 
     // Densities below this are not considered solid points
-    const DENS_THRESHOLD: f32 = 2.;
+    // let density_threshold = avg_dens / 2.;
+    let density_threshold = 0.;
 
     let count_over_threshold = vertex_densities
-        .iter()
-        .filter(|(_, d)| *d as f32 > avg_dens + DENS_THRESHOLD)
+        .par_iter()
+        .filter(|(_, d)| *d as f32 > density_threshold)
         .count();
 
     println!("Count over threshold: {:?}", count_over_threshold);
+
+    let mut triangles: Vec<Triangle> = Vec::with_capacity(coordinates.len());
 
     let mut printed = false;
     for x in 0..(grid_dimensions.0 - 1) {
         for y in 0..(grid_dimensions.1 - 1) {
             for z in 0..(grid_dimensions.2 - 1) {
-                let vertices: [usize; 8] = [
-                    vertex_densities[get_grid_index(grid_dimensions, x, y, z)].1,
-                    vertex_densities[get_grid_index(grid_dimensions, x + 1, y, z)].1,
-                    vertex_densities[get_grid_index(grid_dimensions, x, y, z + 1)].1,
-                    vertex_densities[get_grid_index(grid_dimensions, x + 1, y, z + 1)].1,
-                    vertex_densities[get_grid_index(grid_dimensions, x, y + 1, z)].1,
-                    vertex_densities[get_grid_index(grid_dimensions, x + 1, y + 1, z)].1,
-                    vertex_densities[get_grid_index(grid_dimensions, x, y + 1, z + 1)].1,
-                    vertex_densities[get_grid_index(grid_dimensions, x + 1, y + 1, z + 1)].1,
+                let idx_0 = get_grid_index(grid_dimensions, x, y, z);
+                let idx_1 = get_grid_index(grid_dimensions, x + 1, y, z);
+                let idx_2 = get_grid_index(grid_dimensions, x, y, z + 1);
+                let idx_3 = get_grid_index(grid_dimensions, x + 1, y, z + 1);
+                let idx_4 = get_grid_index(grid_dimensions, x, y + 1, z);
+                let idx_5 = get_grid_index(grid_dimensions, x + 1, y + 1, z);
+                let idx_6 = get_grid_index(grid_dimensions, x, y + 1, z + 1);
+                let idx_7 = get_grid_index(grid_dimensions, x + 1, y + 1, z + 1);
+
+                let vertices: [((&usize, &usize, &usize), usize); 8] = [
+                    vertex_densities[idx_0],
+                    vertex_densities[idx_1],
+                    vertex_densities[idx_2],
+                    vertex_densities[idx_3],
+                    vertex_densities[idx_4],
+                    vertex_densities[idx_5],
+                    vertex_densities[idx_6],
+                    vertex_densities[idx_7],
                 ];
 
                 let mask_idx = vertices.iter().enumerate().fold(0, |acc, (idx, d)| {
-                    acc | ((*d as f32 > (DENS_THRESHOLD)) as usize) << idx
+                    acc | ((d.1 as f32 > density_threshold) as usize) << idx
                 });
 
-                if !printed && (vertices[0] as f32 > avg_dens + DENS_THRESHOLD) {
-                    println!("Mask index: {:?}", mask_idx);
-                    println!(
-                        "Vertices: {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?}",
-                        vertices[0],
-                        vertices[1],
-                        vertices[2],
-                        vertices[3],
-                        vertices[4],
-                        vertices[5],
-                        vertices[6],
-                        vertices[7]
+                if EDGE_MASKS[mask_idx] == 0 {
+                    continue;
+                }
+
+                let mut vert_list: [Vec3; 12] = Default::default();
+
+                if EDGE_MASKS[mask_idx] & 0b00000001 > 0 {
+                    let edge_start = EDGE_VERTEX_IDX[0][0];
+                    let edge_end = EDGE_VERTEX_IDX[0][1];
+                    vert_list[0] = interp_vert_pos(
+                        vertices[edge_start].0,
+                        vertices[edge_end].0,
+                        vertices[edge_start].1,
+                        vertices[edge_end].1,
+                        use_interp,
                     );
-                    printed = true;
+                }
+                if EDGE_MASKS[mask_idx] & 0b00000010 > 0 {
+                    let edge_start = EDGE_VERTEX_IDX[1][0];
+                    let edge_end = EDGE_VERTEX_IDX[1][1];
+                    vert_list[1] = interp_vert_pos(
+                        vertices[edge_start].0,
+                        vertices[edge_end].0,
+                        vertices[edge_start].1,
+                        vertices[edge_end].1,
+                        use_interp,
+                    );
+                }
+                if EDGE_MASKS[mask_idx] & 0b000000000100 > 0 {
+                    let edge_start = EDGE_VERTEX_IDX[2][0];
+                    let edge_end = EDGE_VERTEX_IDX[2][1];
+                    vert_list[2] = interp_vert_pos(
+                        vertices[edge_start].0,
+                        vertices[edge_end].0,
+                        vertices[edge_start].1,
+                        vertices[edge_end].1,
+                        use_interp,
+                    );
+                }
+                if EDGE_MASKS[mask_idx] & 0b000000001000 > 0 {
+                    let edge_start = EDGE_VERTEX_IDX[3][0];
+                    let edge_end = EDGE_VERTEX_IDX[3][1];
+                    vert_list[3] = interp_vert_pos(
+                        vertices[edge_start].0,
+                        vertices[edge_end].0,
+                        vertices[edge_start].1,
+                        vertices[edge_end].1,
+                        use_interp,
+                    );
+                }
+                if EDGE_MASKS[mask_idx] & 0b000000010000 > 0 {
+                    let edge_start = EDGE_VERTEX_IDX[4][0];
+                    let edge_end = EDGE_VERTEX_IDX[4][1];
+                    vert_list[4] = interp_vert_pos(
+                        vertices[edge_start].0,
+                        vertices[edge_end].0,
+                        vertices[edge_start].1,
+                        vertices[edge_end].1,
+                        use_interp,
+                    );
+                }
+                if EDGE_MASKS[mask_idx] & 0b000000100000 > 0 {
+                    let edge_start = EDGE_VERTEX_IDX[5][0];
+                    let edge_end = EDGE_VERTEX_IDX[5][1];
+                    vert_list[5] = interp_vert_pos(
+                        vertices[edge_start].0,
+                        vertices[edge_end].0,
+                        vertices[edge_start].1,
+                        vertices[edge_end].1,
+                        use_interp,
+                    );
+                }
+                if EDGE_MASKS[mask_idx] & 0b000001000000 > 0 {
+                    let edge_start = EDGE_VERTEX_IDX[6][0];
+                    let edge_end = EDGE_VERTEX_IDX[6][1];
+                    vert_list[6] = interp_vert_pos(
+                        vertices[edge_start].0,
+                        vertices[edge_end].0,
+                        vertices[edge_start].1,
+                        vertices[edge_end].1,
+                        use_interp,
+                    );
+                }
+                if EDGE_MASKS[mask_idx] & 0b000010000000 > 0 {
+                    let edge_start = EDGE_VERTEX_IDX[7][0];
+                    let edge_end = EDGE_VERTEX_IDX[7][1];
+                    vert_list[7] = interp_vert_pos(
+                        vertices[edge_start].0,
+                        vertices[edge_end].0,
+                        vertices[edge_start].1,
+                        vertices[edge_end].1,
+                        use_interp,
+                    );
+                }
+                if EDGE_MASKS[mask_idx] & 0b000100000000 > 0 {
+                    let edge_start = EDGE_VERTEX_IDX[8][0];
+                    let edge_end = EDGE_VERTEX_IDX[8][1];
+                    vert_list[8] = interp_vert_pos(
+                        vertices[edge_start].0,
+                        vertices[edge_end].0,
+                        vertices[edge_start].1,
+                        vertices[edge_end].1,
+                        use_interp,
+                    );
+                }
+                if EDGE_MASKS[mask_idx] & 0b001000000000 > 0 {
+                    let edge_start = EDGE_VERTEX_IDX[9][0];
+                    let edge_end = EDGE_VERTEX_IDX[9][1];
+                    vert_list[9] = interp_vert_pos(
+                        vertices[edge_start].0,
+                        vertices[edge_end].0,
+                        vertices[edge_start].1,
+                        vertices[edge_end].1,
+                        use_interp,
+                    );
+                }
+                if EDGE_MASKS[mask_idx] & 0b010000000000 > 0 {
+                    let edge_start = EDGE_VERTEX_IDX[10][0];
+                    let edge_end = EDGE_VERTEX_IDX[10][1];
+                    vert_list[10] = interp_vert_pos(
+                        vertices[edge_start].0,
+                        vertices[edge_end].0,
+                        vertices[edge_start].1,
+                        vertices[edge_end].1,
+                        use_interp,
+                    );
+                }
+                if EDGE_MASKS[mask_idx] & 0b100000000000 > 0 {
+                    let edge_start = EDGE_VERTEX_IDX[11][0];
+                    let edge_end = EDGE_VERTEX_IDX[11][1];
+                    vert_list[11] = interp_vert_pos(
+                        vertices[edge_start].0,
+                        vertices[edge_end].0,
+                        vertices[edge_start].1,
+                        vertices[edge_end].1,
+                        use_interp,
+                    );
+                }
+
+                for i in 0..12 {
+                    if TRI_TABLE[mask_idx][i] == -1
+                        || TRI_TABLE[mask_idx][i + 1] == -1
+                        || TRI_TABLE[mask_idx][i + 2] == -1
+                    {
+                        break;
+                    }
+
+                    let vert1_grid = vert_list[TRI_TABLE[mask_idx][i] as usize];
+                    let vert2_grid = vert_list[TRI_TABLE[mask_idx][i + 1] as usize];
+                    let vert3_grid = vert_list[TRI_TABLE[mask_idx][i + 2] as usize];
+
+                    let dimensions_real = Vec3::new(
+                        (max_mm_dimensions.0) as f32,
+                        (max_mm_dimensions.1) as f32,
+                        (max_mm_dimensions.2) as f32,
+                    );
+
+                    let vert1_real = vert1_grid * voxel_size as f32 - dimensions_real;
+                    let vert2_real = vert2_grid * voxel_size as f32 - dimensions_real;
+                    let vert3_real = vert3_grid * voxel_size as f32 - dimensions_real;
+
+                    let a = vert2_real - vert1_real;
+                    let b = vert3_real - vert1_real;
+
+                    let norm_x = a.y * b.z - a.z * b.y;
+                    let norm_y = a.z * b.x - a.x * b.z;
+                    let norm_z = a.x * b.y - a.y * b.x;
+
+                    let normal_vec = Vec3::new(norm_x, norm_y, norm_z).normalize();
+
+                    let tri = Triangle {
+                        vertices: [
+                            [vert1_real.x, vert1_real.y, vert1_real.z],
+                            [vert2_real.x, vert2_real.y, vert2_real.z],
+                            [vert3_real.x, vert3_real.y, vert3_real.z],
+                        ],
+                        normal: [normal_vec.x, normal_vec.y, normal_vec.z],
+                    };
+                    triangles.push(tri);
+
+                    if !printed && (vertices[0].1 as f32 > avg_dens + density_threshold) {
+                        println!("Mask index: {:?}", mask_idx);
+                        println!(
+                            "Vertices: {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?}",
+                            vertices[0],
+                            vertices[1],
+                            vertices[2],
+                            vertices[3],
+                            vertices[4],
+                            vertices[5],
+                            vertices[6],
+                            vertices[7]
+                        );
+                        println!("Triangle: {:?}", tri);
+                        printed = true;
+                    }
                 }
             }
         }
     }
 
-    return Vec::new();
+    println!("Triangles: {:?}", triangles.len());
+
+    return triangles;
+}
+
+fn interp_vert_pos(
+    p1: (&usize, &usize, &usize),
+    p2: (&usize, &usize, &usize),
+    d1: usize,
+    d2: usize,
+    use_interp: bool,
+) -> Vec3 {
+    let p1 = Vec3::new(*p1.0 as f32, *p1.1 as f32, *p1.2 as f32);
+    let p2 = Vec3::new(*p2.0 as f32, *p2.1 as f32, *p2.2 as f32);
+
+    if !use_interp {
+        let avg = (p1 + p2) / 2.0;
+        return avg;
+    }
+
+    let t = (d1 as f32) / (d1 as f32 + d2 as f32);
+    let interp = p1 + (p2 - p1) * t;
+    return interp;
 }
 
 // Given the grid size and the elements coordinates, return the index of the element in the grid array
@@ -174,7 +430,7 @@ fn get_grid_index(grid_dimensions: (usize, usize, usize), x: usize, y: usize, z:
 }
 
 // Pair of vertex indices for each edge on the cube
-const EdgeVertexIndices: [[usize; 2]; 12] = [
+const EDGE_VERTEX_IDX: [[usize; 2]; 12] = [
     [0, 1],
     [1, 3],
     [3, 2],
@@ -190,7 +446,7 @@ const EdgeVertexIndices: [[usize; 2]; 12] = [
 ];
 
 // For each MC case, a mask of edge indices that need to be split
-const EdgeMasks: [usize; 256] = [
+const EDGE_MASKS: [usize; 256] = [
     0x0, 0x109, 0x203, 0x30a, 0x80c, 0x905, 0xa0f, 0xb06, 0x406, 0x50f, 0x605, 0x70c, 0xc0a, 0xd03,
     0xe09, 0xf00, 0x190, 0x99, 0x393, 0x29a, 0x99c, 0x895, 0xb9f, 0xa96, 0x596, 0x49f, 0x795,
     0x69c, 0xd9a, 0xc93, 0xf99, 0xe90, 0x230, 0x339, 0x33, 0x13a, 0xa3c, 0xb35, 0x83f, 0x936,
@@ -213,7 +469,7 @@ const EdgeMasks: [usize; 256] = [
     0xb06, 0xa0f, 0x905, 0x80c, 0x30a, 0x203, 0x109, 0x0,
 ];
 
-const TriangleTable: [[i8; 16]; 256] = [
+const TRI_TABLE: [[i8; 16]; 256] = [
     [
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     ],

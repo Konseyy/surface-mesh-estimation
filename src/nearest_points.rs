@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use crate::{
+    draw_triangles::draw_triangles,
     marching_cubes::by_marching_cubes,
     utils::{
         CartesianCoordinate, NearPointAlgorithm, OutputType, ProcessedPixels, TextCoords, Vec3,
@@ -29,7 +30,8 @@ pub fn by_nearest_points(
     let time_start = Instant::now();
     let tree = KdTree::par_build_by_ordered_float(coordinates.clone());
 
-    by_marching_cubes(coordinates, &tree);
+    let triangles = by_marching_cubes(coordinates, &tree, 20, true);
+    draw_triangles(triangles);
 
     let elapsed_tree_constr = time_start.elapsed();
     println!("KD tree construction took {:.2?}", elapsed_tree_constr);

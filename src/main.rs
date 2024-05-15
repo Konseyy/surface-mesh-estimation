@@ -3,6 +3,7 @@ use image::codecs::jpeg::JpegEncoder;
 use image::{self, ImageEncoder};
 use std::path::PathBuf;
 
+mod draw_triangles;
 mod marching_cubes;
 mod nearest_points;
 mod utils;
