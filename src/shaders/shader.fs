@@ -10,7 +10,6 @@ const vec3 LIGHT_POS = vec3(20., -10., 500.);
 
 vec3 illuminate() {
   vec3 lightDir = vPosition - LIGHT_POS;
-  float NdotL = dot(vNormal, lightDir) * 0.5 + 0.5;
 
   float dist_to_light = min(1., length(lightDir) / (256. * 25.));
 

@@ -72,9 +72,9 @@ pub fn by_marching_cubes(
 
     // * 2 because we want to have the grid centered around the origin
     let grid_dimensions = (
-        (max_mm_dimensions.0 * 2) / voxel_size,
-        (max_mm_dimensions.1 * 2) / voxel_size,
-        (max_mm_dimensions.2 * 2) / voxel_size,
+        ((max_mm_dimensions.0 * 2) as f32 / voxel_size as f32).ceil() as usize,
+        ((max_mm_dimensions.1 * 2) as f32 / voxel_size as f32).ceil() as usize,
+        ((max_mm_dimensions.2 * 2) as f32 / voxel_size as f32).ceil() as usize,
     );
 
     println!("Grid dimensions: {:?}", grid_dimensions);
@@ -123,7 +123,7 @@ pub fn by_marching_cubes(
                     vec_coord: grid_point,
                     from_text: TextCoords { x: 0, y: 0 },
                 },
-                (voxel_size / 2) as f32,
+                (voxel_size) as f32,
             );
 
             return ((x_grid, y_grid, z_grid), density.len());
