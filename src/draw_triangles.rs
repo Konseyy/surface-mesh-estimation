@@ -73,10 +73,13 @@ pub fn draw_triangles(triangles: Vec<Triangle>) {
     let aspect = view_w as f32 / view_h as f32;
     let projection = cgmath::perspective(cgmath::Deg(80.0), aspect, 0.01, 100000.0);
 
+    const START_VIEW_HEIGHT: f32 = 55f32;
+
     let mut rotation = 0f32;
-    let mut view_height = 55f32;
     let mut show_normals = false;
-    let mut camera = Vec3::new(100., 240., view_height);
+
+    let mut camera = Vec3::new(0., 0., START_VIEW_HEIGHT);
+    let mut look_at = Vec3::new(10., 10., START_VIEW_HEIGHT);
 
     let mut rotation_paused = true;
     let mut key_rotate_left = false;
@@ -188,43 +191,55 @@ pub fn draw_triangles(triangles: Vec<Triangle>) {
                 rotation += 0.6;
             }
             if key_rotate_left {
-                rotation -= 1.0;
-            }
-            if key_rotate_right {
                 rotation += 1.0;
             }
+            if key_rotate_right {
+                rotation -= 1.0;
+            }
             if key_go_up {
-                view_height += 10.0;
+                camera.z += 10.0;
+                look_at.z += 10.0;
             }
             if key_go_down {
-                view_height -= 10.0;
+                camera.z -= 10.0;
+                look_at.z -= 10.0;
             }
 
             let rotation = Matrix4::from_angle_x(cgmath::Deg(0.0))
-                * Matrix4::from_angle_y(cgmath::Deg(0.0 + rotation))
-                * Matrix4::from_angle_z(cgmath::Deg(0.0));
+                * Matrix4::from_angle_y(cgmath::Deg(0.0))
+                * Matrix4::from_angle_z(cgmath::Deg(0.0 + rotation));
+
+            let translation = Matrix4::from_translation(vec3(camera.x, camera.y, camera.z));
+            let inv_translation = Matrix4::from_translation(vec3(-camera.x, -camera.y, -camera.z));
+
+            let used_look_at = translation
+                * rotation
+                * inv_translation
+                * vec4(look_at.x, look_at.y, look_at.z, 1.0);
 
             if key_go_forward {
-                let norm_forward = camera.normalize();
-                let dir =
-                    rotation * vec4(norm_forward.x, norm_forward.y, norm_forward.z, 1.) * 10.0;
-                camera += Vec3::new(dir.x, dir.y, 0.0);
+                let norm_forward = (Vec3::new(used_look_at.x, used_look_at.y, used_look_at.z)
+                    - camera)
+                    .normalize();
+                camera += norm_forward * 10.;
+                look_at += norm_forward * 10.;
             }
             if key_go_backward {
-                let norm_backward = camera.normalize();
-                let dir =
-                    rotation * vec4(norm_backward.x, norm_backward.y, norm_backward.z, 1.) * 10.0;
-                camera -= Vec3::new(dir.x, dir.y, 0.0);
+                let norm_forward = (Vec3::new(used_look_at.x, used_look_at.y, used_look_at.z)
+                    - camera)
+                    .normalize();
+                camera -= norm_forward * 10.;
+                look_at -= norm_forward * 10.;
             }
 
             let view = Matrix4::look_at_rh(
-                Point3::new(camera.x, camera.y, view_height),
-                Point3::new(0.0, 0.0, view_height),
+                Point3::new(camera.x, camera.y, camera.z),
+                Point3::new(used_look_at.x, used_look_at.y, used_look_at.z),
                 vec3(0.0, 0.0, 1.0),
             );
 
             let uniforms = uniform! {
-                model_view_projection: Into::<[[f32; 4]; 4]>::into(projection * rotation * view),
+                model_view_projection: Into::<[[f32; 4]; 4]>::into(projection  * view),
                 show_normals: if show_normals { 1f32 } else { 0f32 },
             };
 

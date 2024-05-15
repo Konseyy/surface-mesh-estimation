@@ -136,11 +136,6 @@ pub fn by_marching_cubes(
         let idx_2 = get_grid_index(grid_dimensions, *b.0 .0, *b.0 .1, *b.0 .2);
         return idx_1.cmp(&idx_2);
     });
-    // vertex_densities.sort_by(|a, b| {
-    //     let idx_1 = get_grid_index(grid_dimensions, *a.0 .0, *a.0 .1, *a.0 .2);
-    //     let idx_2 = get_grid_index(grid_dimensions, *b.0 .0, *b.0 .1, *b.0 .2);
-    //     return idx_1.cmp(&idx_2);
-    // });
 
     let max_dens = vertex_densities
         .iter()
