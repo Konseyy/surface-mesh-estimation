@@ -424,6 +424,8 @@ fn get_grid_index(grid_dimensions: (usize, usize, usize), x: usize, y: usize, z:
     return x + y * grid_dimensions.0 + z * grid_dimensions.0 * grid_dimensions.1;
 }
 
+// https://gist.github.com/dwilliamson/c041e3454a713e58baf6e4f8e5fffecd
+
 // Pair of vertex indices for each edge on the cube
 const EDGE_VERTEX_IDX: [[usize; 2]; 12] = [
     [0, 1],
