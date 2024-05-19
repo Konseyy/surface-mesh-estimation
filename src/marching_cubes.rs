@@ -126,7 +126,17 @@ pub fn by_marching_cubes(
                 (voxel_size) as f32,
             );
 
-            return ((x_grid, y_grid, z_grid), density.len());
+            // Filter out only the points that are within the voxel
+            let filtered_densities = density
+                .par_iter()
+                .filter(|c| {
+                    (c.vec_coord.x - grid_point.x).abs() < voxel_size as f32 / 2.
+                        && (c.vec_coord.y - grid_point.y).abs() < voxel_size as f32 / 2.
+                        && (c.vec_coord.z - grid_point.z).abs() < voxel_size as f32 / 2.
+                })
+                .collect::<Vec<_>>();
+
+            return ((x_grid, y_grid, z_grid), filtered_densities.len());
         })
         .collect::<Vec<((&usize, &usize, &usize), usize)>>();
 
