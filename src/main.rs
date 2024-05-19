@@ -6,6 +6,7 @@ use std::path::PathBuf;
 mod draw_triangles;
 mod marching_cubes;
 mod nearest_points;
+mod surface_nets;
 mod utils;
 
 use nearest_points::by_nearest_points;

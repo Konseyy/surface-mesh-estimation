@@ -10,7 +10,7 @@ use glium::{
 };
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-use crate::{marching_cubes::Triangle, utils::Vec3};
+use crate::utils::{Triangle, Vec3};
 
 #[derive(Copy, Clone)]
 struct Vertex {

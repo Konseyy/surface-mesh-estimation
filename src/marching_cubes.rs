@@ -4,13 +4,7 @@ use rayon::{
     prelude::*,
 };
 
-use crate::utils::{CartesianCoordinate, TextCoords, Vec3};
-
-#[derive(Default, Copy, Clone, Debug)]
-pub struct Triangle {
-    pub vertices: [[f32; 3]; 3],
-    pub normal: [f32; 3],
-}
+use crate::utils::{CartesianCoordinate, TextCoords, Triangle, Vec3};
 
 pub fn by_marching_cubes(
     coordinates: &Vec<CartesianCoordinate>,
@@ -354,15 +348,12 @@ pub fn by_marching_cubes(
                     let vert2_grid = vert_list[TRI_TABLE[mask_idx][i + 1] as usize];
                     let vert3_grid = vert_list[TRI_TABLE[mask_idx][i + 2] as usize];
 
-                    let dimensions_real = Vec3::new(
-                        (max_mm_dimensions.0) as f32,
-                        (max_mm_dimensions.1) as f32,
-                        (max_mm_dimensions.2) as f32,
-                    );
-
-                    let vert1_real = vert1_grid * voxel_size as f32 - dimensions_real;
-                    let vert2_real = vert2_grid * voxel_size as f32 - dimensions_real;
-                    let vert3_real = vert3_grid * voxel_size as f32 - dimensions_real;
+                    let vert1_real =
+                        grid_space_to_real_space(vert1_grid, max_mm_dimensions, voxel_size);
+                    let vert2_real =
+                        grid_space_to_real_space(vert2_grid, max_mm_dimensions, voxel_size);
+                    let vert3_real =
+                        grid_space_to_real_space(vert3_grid, max_mm_dimensions, voxel_size);
 
                     let a = vert2_real - vert1_real;
                     let b = vert3_real - vert1_real;
@@ -407,6 +398,20 @@ pub fn by_marching_cubes(
     println!("Triangles: {:?}", triangles.len());
 
     return (triangles, max_mm_dimensions);
+}
+
+fn grid_space_to_real_space(
+    grid_point: Vec3,
+    max_mm_dimensions: (usize, usize, usize),
+    voxel_size: usize,
+) -> Vec3 {
+    let dimensions_real = Vec3::new(
+        (max_mm_dimensions.0) as f32,
+        (max_mm_dimensions.1) as f32,
+        (max_mm_dimensions.2) as f32,
+    );
+
+    return grid_point * voxel_size as f32 - dimensions_real;
 }
 
 fn interp_vert_pos(

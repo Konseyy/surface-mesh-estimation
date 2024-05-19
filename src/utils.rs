@@ -41,6 +41,12 @@ impl KdPoint for CartesianCoordinate {
     }
 }
 
+#[derive(Default, Copy, Clone, Debug)]
+pub struct Triangle {
+    pub vertices: [[f32; 3]; 3],
+    pub normal: [f32; 3],
+}
+
 #[derive(Copy, Clone, Debug)]
 pub enum OutputType {
     Shaded,

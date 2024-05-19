@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 use crate::{
     draw_triangles::draw_triangles,
     marching_cubes::by_marching_cubes,
+    surface_nets::by_surface_nets,
     utils::{
         CartesianCoordinate, NearPointAlgorithm, OutputType, ProcessedPixels, TextCoords, Vec3,
     },
@@ -19,6 +20,14 @@ pub struct ProcessedNearestPoint {
     pub plane_fit_elapsed: Duration,
 }
 
+pub enum OutputGenerator {
+    MarchingCubes,
+    SurfaceNets,
+}
+
+const GENERATOR: OutputGenerator = OutputGenerator::SurfaceNets;
+const VOXEL_SIZE_MM: usize = 22;
+
 pub fn by_nearest_points(
     coordinates: &Vec<CartesianCoordinate>,
     k_nearest: usize,
@@ -30,14 +39,26 @@ pub fn by_nearest_points(
     let time_start = Instant::now();
     let tree = KdTree::par_build_by_ordered_float(coordinates.clone());
 
-    let (triangles, dimensions_mm) = by_marching_cubes(coordinates, &tree, 20, true);
+    let (triangles, dimensions_mm) = match GENERATOR {
+        OutputGenerator::MarchingCubes => {
+            by_marching_cubes(coordinates, &tree, VOXEL_SIZE_MM, true)
+        }
+        OutputGenerator::SurfaceNets => by_surface_nets(
+            coordinates,
+            &tree,
+            VOXEL_SIZE_MM,
+            12,
+            None,
+        ),
+    };
+
     let max_dist = usize::max(
         dimensions_mm.0,
         usize::max(dimensions_mm.1, dimensions_mm.2),
     ) as f32
         * 0.95;
 
-    println!("Drawing triangles {:?}", max_dist);
+    println!("Drawing triangles with max light dist {:?}", max_dist);
     draw_triangles(triangles, max_dist);
 
     let elapsed_tree_constr = time_start.elapsed();
