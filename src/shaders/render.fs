@@ -1,16 +1,15 @@
 #version 330
 uniform float show_normals;
 uniform float max_distance;
+uniform vec3 light_pos;
 
 in vec3 vNormal;
 in vec3 vPosition;
 
 layout(location = 0) out vec4 color;
 
-const vec3 LIGHT_POS = vec3(20., -10., 500.);
-
 vec3 illuminate() {
-  vec3 lightDir = vPosition - LIGHT_POS;
+  vec3 lightDir = vPosition - light_pos;
 
   float dist_to_light = min(1., length(lightDir) / max_distance);
 

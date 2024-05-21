@@ -26,7 +26,7 @@ pub enum OutputGenerator {
 }
 
 const GENERATOR: OutputGenerator = OutputGenerator::SurfaceNets;
-const VOXEL_SIZE_MM: usize = 22;
+const VOXEL_SIZE_MM: usize = 25;
 
 pub fn by_nearest_points(
     coordinates: &Vec<CartesianCoordinate>,
@@ -43,13 +43,7 @@ pub fn by_nearest_points(
         OutputGenerator::MarchingCubes => {
             by_marching_cubes(coordinates, &tree, VOXEL_SIZE_MM, true)
         }
-        OutputGenerator::SurfaceNets => by_surface_nets(
-            coordinates,
-            &tree,
-            VOXEL_SIZE_MM,
-            12,
-            None,
-        ),
+        OutputGenerator::SurfaceNets => by_surface_nets(coordinates, &tree, VOXEL_SIZE_MM, 6),
     };
 
     let max_dist = usize::max(
