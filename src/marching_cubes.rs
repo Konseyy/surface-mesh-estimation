@@ -122,7 +122,7 @@ pub fn by_marching_cubes(
 
             // Filter out only the points that are within the voxel
             let filtered_densities = density
-                .par_iter()
+                .iter()
                 .filter(|c| {
                     (c.vec_coord.x - grid_point.x).abs() < voxel_size as f32 / 2.
                         && (c.vec_coord.y - grid_point.y).abs() < voxel_size as f32 / 2.
@@ -161,7 +161,7 @@ pub fn by_marching_cubes(
     let density_threshold = 0.;
 
     let count_over_threshold = vertex_densities
-        .par_iter()
+        .iter()
         .filter(|(_, d)| *d as f32 > density_threshold)
         .count();
 
