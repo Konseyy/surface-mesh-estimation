@@ -20,7 +20,6 @@ pub fn by_surface_nets(
     tree: &KdTree<CartesianCoordinate>,
     voxel_size: usize,
     smooth_steps: usize,
-    smooth_size: Option<usize>,
 ) -> (Vec<Triangle>, (usize, usize, usize)) {
     // find the furthest point in each cartesian dimension
     let max_x = coordinates
@@ -179,29 +178,26 @@ pub fn by_surface_nets(
 
     let mut triangles: Vec<Triangle> = Vec::with_capacity(coordinates.len());
 
-    let voxel_sf32 = voxel_size as f32;
-
-    let net_dimensions = (
-        grid_dimensions.0 - 1,
-        grid_dimensions.1 - 1,
-        grid_dimensions.2 - 1,
-    );
-
     let mut net_vertices =
-        Vec::<NetVertex>::with_capacity(net_dimensions.0 * net_dimensions.1 * net_dimensions.2);
-    for x in 0..net_dimensions.0 {
-        for y in 0..net_dimensions.1 {
-            for z in 0..net_dimensions.2 {
+        Vec::<NetVertex>::with_capacity(grid_dimensions.0 * grid_dimensions.1 * grid_dimensions.2);
+    for x in 0..grid_dimensions.0 {
+        for y in 0..grid_dimensions.1 {
+            for z in 0..grid_dimensions.2 {
                 let points = [
-                    vertex_densities[get_grid_index(grid_dimensions, x, y, z).unwrap()],
-                    vertex_densities[get_grid_index(grid_dimensions, x + 1, y, z).unwrap()],
-                    vertex_densities[get_grid_index(grid_dimensions, x, y + 1, z).unwrap()],
-                    vertex_densities[get_grid_index(grid_dimensions, x + 1, y + 1, z).unwrap()],
-                    vertex_densities[get_grid_index(grid_dimensions, x, y, z + 1).unwrap()],
-                    vertex_densities[get_grid_index(grid_dimensions, x + 1, y, z + 1).unwrap()],
-                    vertex_densities[get_grid_index(grid_dimensions, x, y + 1, z + 1).unwrap()],
-                    vertex_densities[get_grid_index(grid_dimensions, x + 1, y + 1, z + 1).unwrap()],
-                ];
+                    (x, y, z),
+                    (x + 1, y, z),
+                    (x, y + 1, z),
+                    (x + 1, y + 1, z),
+                    (x, y, z + 1),
+                    (x + 1, y, z + 1),
+                    (x, y + 1, z + 1),
+                    (x + 1, y + 1, z + 1),
+                ]
+                .iter()
+                .map(|p| get_grid_index(grid_dimensions, p.0, p.1, p.2))
+                .filter(|&p| p.is_some())
+                .map(|p| vertex_densities[p.unwrap()])
+                .collect::<Vec<((&usize, &usize, &usize), usize)>>();
 
                 let points_over_threshold = points
                     .iter()
@@ -226,8 +222,14 @@ pub fn by_surface_nets(
                     })
                     .sum();
 
-                let cube_center_idx = get_grid_index(net_dimensions, x, y, z).unwrap();
+                let cube_center_idx = get_grid_index(grid_dimensions, x, y, z).unwrap();
                 let grid_position = Vec3::new(x as f32, y as f32, z as f32);
+
+                // let cube_middle_pos = Vec3::new(
+                //     x as f32 * voxel_sf32 - max_mm_dimensions.0 as f32,
+                //     y as f32 * voxel_sf32 - max_mm_dimensions.1 as f32,
+                //     z as f32 * voxel_sf32 - max_mm_dimensions.2 as f32,
+                // );
 
                 if points_over_threshold.iter().all(|&p| p == true) {
                     net_vertices.push(NetVertex {
@@ -264,37 +266,37 @@ pub fn by_surface_nets(
             .map(|v| {
                 let neighbor_vertices = [
                     get_grid_index(
-                        net_dimensions,
+                        grid_dimensions,
                         v.grid_pos.x as usize - 1,
                         v.grid_pos.y as usize,
                         v.grid_pos.z as usize,
                     ),
                     get_grid_index(
-                        net_dimensions,
+                        grid_dimensions,
                         v.grid_pos.x as usize + 1,
                         v.grid_pos.y as usize,
                         v.grid_pos.z as usize,
                     ),
                     get_grid_index(
-                        net_dimensions,
+                        grid_dimensions,
                         v.grid_pos.x as usize,
                         v.grid_pos.y as usize - 1,
                         v.grid_pos.z as usize,
                     ),
                     get_grid_index(
-                        net_dimensions,
+                        grid_dimensions,
                         v.grid_pos.x as usize,
                         v.grid_pos.y as usize + 1,
                         v.grid_pos.z as usize,
                     ),
                     get_grid_index(
-                        net_dimensions,
+                        grid_dimensions,
                         v.grid_pos.x as usize,
                         v.grid_pos.y as usize,
                         v.grid_pos.z as usize - 1,
                     ),
                     get_grid_index(
-                        net_dimensions,
+                        grid_dimensions,
                         v.grid_pos.x as usize,
                         v.grid_pos.y as usize,
                         v.grid_pos.z as usize + 1,
@@ -319,38 +321,17 @@ pub fn by_surface_nets(
                     .map(|v| v.unwrap())
                     .collect::<Vec<&NetVertex>>();
 
-                let count_neighbors = ((existing_neighbors.len() + 1) as f32);
-
-                let mut new_node = existing_neighbors
-                    .iter()
-                    .fold(v.real_pos / count_neighbors, |acc, v| {
-                        acc + v.real_pos / count_neighbors
-                    });
-
-                let cube_start = Vec3::new(
-                    v.grid_pos.x as f32 * voxel_sf32 - max_mm_dimensions.0 as f32,
-                    v.grid_pos.y as f32 * voxel_sf32 - max_mm_dimensions.1 as f32,
-                    v.grid_pos.z as f32 * voxel_sf32 - max_mm_dimensions.2 as f32,
-                );
-
-                if let Some(allowed_distance) = smooth_size {
-                    let cube_end = cube_start
-                        + Vec3::new(
-                            allowed_distance as f32,
-                            allowed_distance as f32,
-                            allowed_distance as f32,
-                        );
-
-                    new_node.x = new_node.x.min(cube_end.x).max(cube_start.x);
-                    new_node.y = new_node.y.min(cube_end.y).max(cube_start.y);
-                    new_node.z = new_node.z.min(cube_end.z).max(cube_start.z);
-                }
+                let count_neighbors = existing_neighbors.len() as f32;
 
                 NetVertex {
                     idx: v.idx,
                     is_surface: v.is_surface,
                     grid_pos: v.grid_pos,
-                    real_pos: new_node,
+                    real_pos: existing_neighbors
+                        .iter()
+                        .fold(Vec3::new(0., 0., 0.), |acc, v| {
+                            acc + v.real_pos / (count_neighbors)
+                        }),
                 }
             })
             .collect::<Vec<NetVertex>>();
@@ -361,23 +342,23 @@ pub fn by_surface_nets(
     for x in 0..(grid_dimensions.0 - 1) {
         for y in 0..(grid_dimensions.1 - 1) {
             for z in 0..(grid_dimensions.2 - 1) {
-                let net_idx_o = get_grid_index(net_dimensions, x, y, z);
+                let net_idx_o = get_grid_index(grid_dimensions, x, y, z);
                 let net_idx = match net_idx_o {
                     Some(idx) => idx,
                     None => continue,
                 };
 
-                let net_left_idx_o = get_grid_index(net_dimensions, x - 1, y, z);
-                let net_right_idx_o = get_grid_index(net_dimensions, x + 1, y, z);
-                let net_front_idx_o = get_grid_index(net_dimensions, x, y + 1, z);
-                let net_back_idx_o = get_grid_index(net_dimensions, x, y - 1, z);
-                let net_up_idx_o = get_grid_index(net_dimensions, x, y, z + 1);
-                let net_down_idx_o = get_grid_index(net_dimensions, x, y, z - 1);
+                let net_left_idx_o = get_grid_index(grid_dimensions, x - 1, y, z);
+                let net_right_idx_o = get_grid_index(grid_dimensions, x + 1, y, z);
+                let net_front_idx_o = get_grid_index(grid_dimensions, x, y + 1, z);
+                let net_back_idx_o = get_grid_index(grid_dimensions, x, y - 1, z);
+                let net_up_idx_o = get_grid_index(grid_dimensions, x, y, z + 1);
+                let net_down_idx_o = get_grid_index(grid_dimensions, x, y, z - 1);
 
-                let surface_center = if net_vertices[net_idx].is_surface {
-                    Some(&net_vertices[net_idx])
+                let center = if net_vertices[net_idx].is_surface {
+                    &net_vertices[net_idx]
                 } else {
-                    None
+                    continue;
                 };
 
                 let surface_left = match net_left_idx_o {
@@ -635,9 +616,7 @@ pub fn by_surface_nets(
                 }
 
                 // left and back
-                if let (Some(left), Some(back), Some(center)) =
-                    (surface_left, surface_back, surface_center)
-                {
+                if let (Some(left), Some(back)) = (surface_left, surface_back) {
                     let a = left.real_pos - center.real_pos;
                     let b = back.real_pos - center.real_pos;
 
@@ -670,9 +649,7 @@ pub fn by_surface_nets(
                 }
 
                 // back and right
-                if let (Some(back), Some(right), Some(center)) =
-                    (surface_back, surface_right, surface_center)
-                {
+                if let (Some(back), Some(right)) = (surface_back, surface_right) {
                     let a = back.real_pos - center.real_pos;
                     let b = right.real_pos - center.real_pos;
 
@@ -705,9 +682,7 @@ pub fn by_surface_nets(
                 }
 
                 // right and front
-                if let (Some(right), Some(front), Some(center)) =
-                    (surface_right, surface_front, surface_center)
-                {
+                if let (Some(right), Some(front)) = (surface_right, surface_front) {
                     let a = right.real_pos - center.real_pos;
                     let b = front.real_pos - center.real_pos;
 
@@ -740,9 +715,7 @@ pub fn by_surface_nets(
                 }
 
                 // front and left
-                if let (Some(front), Some(left), Some(center)) =
-                    (surface_front, surface_left, surface_center)
-                {
+                if let (Some(front), Some(left)) = (surface_front, surface_left) {
                     let a = front.real_pos - center.real_pos;
                     let b = left.real_pos - center.real_pos;
 
@@ -775,9 +748,7 @@ pub fn by_surface_nets(
                 }
 
                 // top and back
-                if let (Some(up), Some(back), Some(center)) =
-                    (surface_up, surface_back, surface_center)
-                {
+                if let (Some(up), Some(back)) = (surface_up, surface_back) {
                     let a = up.real_pos - center.real_pos;
                     let b = back.real_pos - center.real_pos;
 
@@ -813,9 +784,7 @@ pub fn by_surface_nets(
                 }
 
                 // back and bottom
-                if let (Some(back), Some(down), Some(center)) =
-                    (surface_back, surface_down, surface_center)
-                {
+                if let (Some(back), Some(down)) = (surface_back, surface_down) {
                     let a = back.real_pos - center.real_pos;
                     let b = down.real_pos - center.real_pos;
 
@@ -851,9 +820,7 @@ pub fn by_surface_nets(
                 }
 
                 // bottom and front
-                if let (Some(down), Some(front), Some(center)) =
-                    (surface_down, surface_front, surface_center)
-                {
+                if let (Some(down), Some(front)) = (surface_down, surface_front) {
                     let a = front.real_pos - center.real_pos;
                     let b = down.real_pos - center.real_pos;
 
@@ -889,9 +856,7 @@ pub fn by_surface_nets(
                 }
 
                 // front and top
-                if let (Some(front), Some(up), Some(center)) =
-                    (surface_front, surface_up, surface_center)
-                {
+                if let (Some(front), Some(up)) = (surface_front, surface_up) {
                     let a = front.real_pos - center.real_pos;
                     let b = up.real_pos - center.real_pos;
 
@@ -927,9 +892,7 @@ pub fn by_surface_nets(
                 }
 
                 // top and right
-                if let (Some(up), Some(right), Some(center)) =
-                    (surface_up, surface_right, surface_center)
-                {
+                if let (Some(up), Some(right)) = (surface_up, surface_right) {
                     let a = up.real_pos - center.real_pos;
                     let b = right.real_pos - center.real_pos;
 
@@ -965,9 +928,7 @@ pub fn by_surface_nets(
                 }
 
                 // right and bottom
-                if let (Some(right), Some(down), Some(center)) =
-                    (surface_right, surface_down, surface_center)
-                {
+                if let (Some(right), Some(down)) = (surface_right, surface_down) {
                     let a = right.real_pos - center.real_pos;
                     let b = down.real_pos - center.real_pos;
 
@@ -1003,9 +964,7 @@ pub fn by_surface_nets(
                 }
 
                 // bottom and left
-                if let (Some(down), Some(left), Some(center)) =
-                    (surface_down, surface_left, surface_center)
-                {
+                if let (Some(down), Some(left)) = (surface_down, surface_left) {
                     let a = down.real_pos - center.real_pos;
                     let b = left.real_pos - center.real_pos;
 
@@ -1041,9 +1000,7 @@ pub fn by_surface_nets(
                 }
 
                 // left and top
-                if let (Some(left), Some(up), Some(center)) =
-                    (surface_left, surface_up, surface_center)
-                {
+                if let (Some(left), Some(up)) = (surface_left, surface_up) {
                     let a = left.real_pos - center.real_pos;
                     let b = up.real_pos - center.real_pos;
 
