@@ -106,7 +106,7 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
 
     let (view_w, view_h) = display.get_framebuffer_dimensions();
     let aspect = view_w as f32 / view_h as f32;
-    let projection = cgmath::perspective(cgmath::Deg(80.0), aspect, 0.01, 100000.0);
+    let projection = cgmath::perspective(cgmath::Deg(80.0), aspect, 1., 100000.0);
 
     const START_VIEW_HEIGHT: f32 = 55f32;
 
@@ -330,7 +330,7 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
                                 write: true,
                                 ..Default::default()
                             },
-                            point_size: Some(8.0),
+                            point_size: None,
                             polygon_mode,
                             backface_culling:
                                 glium::draw_parameters::BackfaceCullingMode::CullCounterClockwise,
