@@ -13,28 +13,13 @@ struct Vertex {
 
 implement_vertex!(Vertex, position, normal);
 
-#[derive(Clone, Copy, Debug)]
-struct DebugVertex {
-    position: [f32; 2],
-    tex_coords: [f32; 2],
-}
-implement_vertex!(DebugVertex, position, tex_coords);
-impl DebugVertex {
-    pub fn new(position: [f32; 2], tex_coords: [f32; 2]) -> Self {
-        Self {
-            position,
-            tex_coords,
-        }
-    }
-}
-
 pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
     let event_loop = winit::event_loop::EventLoopBuilder::new()
         .build()
         .expect("event loop building");
     let (window, display) = glium::backend::glutin::SimpleWindowBuilder::new()
         .with_title("Render output")
-        .with_inner_size(1600, 900)
+        .with_inner_size(1200, 1200)
         .build(&event_loop);
 
     let tri_vertices = triangles
@@ -61,24 +46,6 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
         glium::VertexBuffer::new(&display, &tri_vertices).expect("failed to create vertex buffer");
     let index_buffer = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
 
-    // Debug Resources (for displaying shadow map)
-    let debug_vertex_buffer = glium::VertexBuffer::new(
-        &display,
-        &[
-            DebugVertex::new([0.25, -1.0], [0.0, 0.0]),
-            DebugVertex::new([0.25, -0.25], [0.0, 1.0]),
-            DebugVertex::new([1.0, -0.25], [1.0, 1.0]),
-            DebugVertex::new([1.0, -1.0], [1.0, 0.0]),
-        ],
-    )
-    .unwrap();
-    let debug_index_buffer = glium::IndexBuffer::new(
-        &display,
-        glium::index::PrimitiveType::TrianglesList,
-        &[0u16, 1, 2, 0, 2, 3],
-    )
-    .unwrap();
-
     let shadow_program = program!(&display,
         330 => {
             vertex: include_str!("shaders/shadows.vs"),
@@ -94,19 +61,14 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
     )
     .expect("failed to compile shaders");
 
-    let shadow_debug_program = program!(&display,
-        140 => {
-            vertex: include_str!("shaders/shadows_debug.vs"),
-            fragment: include_str!("shaders/shadows_debug.fs"),
-        },
-    )
-    .expect("failed to compile shaders");
-
-    let shadow_texture = glium::texture::DepthTexture2d::empty(&display, 1600, 900).unwrap();
+    let shadow_texture = glium::texture::Cubemap::empty(&display, 512).unwrap();
+    let depth_tex = glium::texture::DepthCubemap::empty(&display, 512).unwrap();
 
     let (view_w, view_h) = display.get_framebuffer_dimensions();
     let aspect = view_w as f32 / view_h as f32;
-    let projection = cgmath::perspective(cgmath::Deg(80.0), aspect, 1., 100000.0);
+    const FAR_PLANE: f32 = 10000.0;
+    let projection = cgmath::perspective(cgmath::Deg(90.0), aspect, 0.01, FAR_PLANE);
+    let shadow_projection = cgmath::perspective(cgmath::Deg(90.0), aspect, 0.01, FAR_PLANE);
 
     const START_VIEW_HEIGHT: f32 = 55f32;
 
@@ -115,8 +77,10 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
 
     let mut camera = Vec3::new(0., 0., START_VIEW_HEIGHT);
     let mut look_at = Vec3::new(10., 10., START_VIEW_HEIGHT);
+    let mut light_pos = vec3(0., 0., 0.);
 
     let mut rotation_paused = true;
+    let mut ticks_paused = false;
     let mut key_rotate_left = false;
     let mut key_rotate_right = false;
     let mut key_go_forward = false;
@@ -124,7 +88,8 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
     let mut key_go_up = false;
     let mut key_go_down = false;
 
-    let start_time = std::time::Instant::now();
+    let mut start_time = std::time::Instant::now();
+    let mut ms_since_start = start_time.elapsed().as_millis() as f32;
 
     event_loop
         .run(move |event, window_target| match event {
@@ -188,6 +153,17 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
                                     camera = Vec3::new(0., 0., START_VIEW_HEIGHT);
                                     look_at = Vec3::new(10., 10., START_VIEW_HEIGHT);
                                 }
+                                KeyCode::KeyY => {
+                                    camera = Vec3::new(light_pos.x, light_pos.y, light_pos.z);
+                                    look_at = Vec3::new(
+                                        light_pos.x + 10.,
+                                        light_pos.y + 10.,
+                                        light_pos.z,
+                                    );
+                                }
+                                KeyCode::KeyL => {
+                                    ticks_paused = !ticks_paused;
+                                }
                                 _ => (),
                             }
                         }
@@ -218,7 +194,10 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
                     }
                 }
                 winit::event::WindowEvent::RedrawRequested => {
-                    let ms_since_start = start_time.elapsed().as_millis() as f32;
+                    if !ticks_paused {
+                        ms_since_start += start_time.elapsed().as_millis() as f32;
+                    }
+                    start_time = std::time::Instant::now();
 
                     if !rotation_paused {
                         rotation += 0.6;
@@ -272,8 +251,55 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
                         vec3(0.0, 0.0, 1.0),
                     );
 
-                    let tick = ms_since_start / 350.;
-                    let light_pos = vec3(tick.cos() * 400., tick.sin() * 800., 200.0);
+                    let tick = ms_since_start / 550.;
+                    light_pos = vec3(tick.cos() * 400., tick.sin() * 800., 0.0);
+
+                    let shadow_views = &[
+                        glium::texture::CubeLayer::PositiveX,
+                        glium::texture::CubeLayer::NegativeX,
+                        glium::texture::CubeLayer::PositiveY,
+                        glium::texture::CubeLayer::NegativeY,
+                        glium::texture::CubeLayer::PositiveZ,
+                        glium::texture::CubeLayer::NegativeZ,
+                    ]
+                    .iter()
+                    .map(|layer| {
+                        let view_matrix = match layer {
+                            glium::texture::CubeLayer::NegativeX => Matrix4::look_at_lh(
+                                Point3::new(light_pos.x, light_pos.y, light_pos.z),
+                                Point3::new(light_pos.x + 1.0, light_pos.y, light_pos.z),
+                                vec3(0.0, -1.0, 0.0),
+                            ),
+                            glium::texture::CubeLayer::PositiveX => Matrix4::look_at_lh(
+                                Point3::new(light_pos.x, light_pos.y, light_pos.z),
+                                Point3::new(light_pos.x - 1.0, light_pos.y, light_pos.z),
+                                vec3(0.0, -1.0, 0.0),
+                            ),
+                            // good
+                            glium::texture::CubeLayer::NegativeY => Matrix4::look_at_lh(
+                                Point3::new(light_pos.x, light_pos.y, light_pos.z),
+                                Point3::new(light_pos.x, light_pos.y + 1.0, light_pos.z),
+                                vec3(0.0, 0.0, -1.0),
+                            ),
+                            glium::texture::CubeLayer::PositiveY => Matrix4::look_at_lh(
+                                Point3::new(light_pos.x, light_pos.y, light_pos.z),
+                                Point3::new(light_pos.x, light_pos.y - 1.0, light_pos.z),
+                                vec3(0.0, 0.0, 1.0),
+                            ),
+                            glium::texture::CubeLayer::NegativeZ => Matrix4::look_at_lh(
+                                Point3::new(light_pos.x, light_pos.y, light_pos.z),
+                                Point3::new(light_pos.x, light_pos.y, light_pos.z + 1.0),
+                                vec3(0.0, -1.0, 0.0),
+                            ),
+                            glium::texture::CubeLayer::PositiveZ => Matrix4::look_at_lh(
+                                Point3::new(light_pos.x, light_pos.y, light_pos.z),
+                                Point3::new(light_pos.x, light_pos.y, light_pos.z - 1.0),
+                                vec3(0.0, -1.0, 0.0),
+                            ),
+                        };
+                        return (*layer, view_matrix);
+                    })
+                    .collect::<Vec<_>>();
 
                     // Render the scene from the light's point of view into depth buffer
                     // ===============================================================================
@@ -285,41 +311,54 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
                             write: true,
                             ..Default::default()
                         };
-                        draw_params.backface_culling = glium::BackfaceCullingMode::CullClockwise;
+                        draw_params.backface_culling =
+                            glium::BackfaceCullingMode::CullCounterClockwise;
 
-                        // Write depth to shadow map texture
-                        let mut framebuffer = glium::framebuffer::SimpleFrameBuffer::depth_only(
-                            &display,
-                            &shadow_texture,
-                        )
-                        .unwrap();
-                        framebuffer.clear_color_and_depth((1.0, 1.0, 1.0, 1.0), 1.);
+                        for (layer, shadow_view) in shadow_views {
+                            // Write depth to shadow map texture
+                            let mut framebuffer =
+                                glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(
+                                    &display,
+                                    shadow_texture.main_level().image(*layer),
+                                    depth_tex.main_level().image(*layer),
+                                )
+                                .unwrap();
+                            framebuffer.clear_color_and_depth((0., 0., 0., 1.), 1.);
 
-                        let uniforms = uniform! {
-                            depth_mvp: Into::<[[f32; 4]; 4]>::into(projection*view),
-                        };
+                            let uniforms = uniform! {
+                            depth_mvp: Into::<[[f32; 4]; 4]>::into(shadow_projection*shadow_view),
+                            far_plane: FAR_PLANE,
+                            light_pos: [light_pos.x, light_pos.y, light_pos.z],
+                            };
 
-                        framebuffer
-                            .draw(
-                                &vertex_buffer,
-                                &index_buffer,
-                                &shadow_program,
-                                &uniforms,
-                                &draw_params,
-                            )
-                            .unwrap();
+                            framebuffer
+                                .draw(
+                                    &vertex_buffer,
+                                    &index_buffer,
+                                    &shadow_program,
+                                    &uniforms,
+                                    &draw_params,
+                                )
+                                .unwrap();
+                        }
                     }
 
-                    let mut surface = display.draw();
-                    surface.clear_color_and_depth((0.011, 0.0089, 0.1622, 0.0), 1.0);
+                    let mut screen = display.draw();
+                    screen.clear_color_and_depth((0.011, 0.0089, 0.1622, 0.0), 1.0);
 
                     // Render from camera POV
                     {
+                        let shadow_sampler = glium::uniforms::Sampler::new(&shadow_texture)
+                            .magnify_filter(glium::uniforms::MagnifySamplerFilter::Nearest)
+                            .minify_filter(glium::uniforms::MinifySamplerFilter::Nearest);
+
                         let uniforms = uniform! {
-                            model_view_projection: Into::<[[f32; 4]; 4]>::into(projection  * view),
+                            mvp: Into::<[[f32; 4]; 4]>::into(projection  * view),
                             show_normals: if show_normals { 1f32 } else { 0f32 },
                             max_distance: max_light_distance,
                             light_pos: [light_pos.x, light_pos.y, light_pos.z],
+                            shadow_map: shadow_sampler,
+                            far_plane: FAR_PLANE,
                         };
 
                         let polygon_mode = PolygonMode::Fill;
@@ -337,7 +376,7 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
                             ..Default::default()
                         };
 
-                        surface
+                        screen
                             .draw(
                                 &vertex_buffer,
                                 &index_buffer,
@@ -348,26 +387,7 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
                             .expect("failed to draw to surface");
                     }
 
-                    // Debug for shadow map
-                    {
-                        let uniforms = uniform! {
-                            tex: glium::uniforms::Sampler::new(&shadow_texture)
-                                .magnify_filter(glium::uniforms::MagnifySamplerFilter::Nearest)
-                                .minify_filter(glium::uniforms::MinifySamplerFilter::Nearest)
-                        };
-                        surface.clear_depth(1.0);
-                        surface
-                            .draw(
-                                &debug_vertex_buffer,
-                                &debug_index_buffer,
-                                &shadow_debug_program,
-                                &uniforms,
-                                &Default::default(),
-                            )
-                            .unwrap();
-                    }
-
-                    surface.finish().expect("failed to finish rendering frame");
+                    screen.finish().expect("failed to finish rendering frame");
                 }
 
                 _ => (),

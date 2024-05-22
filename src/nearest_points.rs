@@ -25,7 +25,7 @@ pub enum OutputGenerator {
     SurfaceNets,
 }
 
-const GENERATOR: OutputGenerator = OutputGenerator::SurfaceNets;
+const GENERATOR: OutputGenerator = OutputGenerator::MarchingCubes;
 const VOXEL_SIZE_MM: usize = 25;
 
 pub fn by_nearest_points(
