@@ -55,6 +55,8 @@ pub fn by_nearest_points(
     println!("Drawing triangles with max light dist {:?}", max_dist);
     draw_triangles(triangles, max_dist);
 
+    return Vec::new();
+
     let elapsed_tree_constr = time_start.elapsed();
     println!("KD tree construction took {:.2?}", elapsed_tree_constr);
 
