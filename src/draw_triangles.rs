@@ -61,8 +61,8 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
     )
     .expect("failed to compile shaders");
 
-    let shadow_texture = glium::texture::Cubemap::empty(&display, 512).unwrap();
-    let depth_tex = glium::texture::DepthCubemap::empty(&display, 512).unwrap();
+    let shadow_texture = glium::texture::Cubemap::empty(&display, 1024).unwrap();
+    let depth_tex = glium::texture::DepthCubemap::empty(&display, 1024).unwrap();
 
     let (view_w, view_h) = display.get_framebuffer_dimensions();
     let aspect = view_w as f32 / view_h as f32;
@@ -74,13 +74,14 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
 
     let mut rotation = 0f32;
     let mut show_normals = false;
+    let mut show_shadows = true;
 
     let mut camera = Vec3::new(0., 0., START_VIEW_HEIGHT);
     let mut look_at = Vec3::new(10., 10., START_VIEW_HEIGHT);
     let mut light_pos = vec3(0., 0., 0.);
 
     let mut rotation_paused = true;
-    let mut ticks_paused = false;
+    let mut ticks_paused = true;
     let mut key_rotate_left = false;
     let mut key_rotate_right = false;
     let mut key_go_forward = false;
@@ -163,6 +164,9 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
                                 }
                                 KeyCode::KeyL => {
                                     ticks_paused = !ticks_paused;
+                                }
+                                KeyCode::KeyF => {
+                                    show_shadows = !show_shadows;
                                 }
                                 _ => (),
                             }
@@ -355,6 +359,7 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
                         let uniforms = uniform! {
                             mvp: Into::<[[f32; 4]; 4]>::into(projection  * view),
                             show_normals: if show_normals { 1f32 } else { 0f32 },
+                            show_shadows: if show_shadows { 1f32 } else { 0f32 },
                             max_distance: max_light_distance,
                             light_pos: [light_pos.x, light_pos.y, light_pos.z],
                             shadow_map: shadow_sampler,
