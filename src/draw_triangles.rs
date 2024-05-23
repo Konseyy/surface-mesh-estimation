@@ -19,7 +19,7 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
         .expect("event loop building");
     let (window, display) = glium::backend::glutin::SimpleWindowBuilder::new()
         .with_title("Render output")
-        .with_inner_size(1200, 1200)
+        .with_inner_size(1600, 900)
         .build(&event_loop);
 
     let tri_vertices = triangles
@@ -68,7 +68,7 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
     let aspect = view_w as f32 / view_h as f32;
     const FAR_PLANE: f32 = 10000.0;
     let projection = cgmath::perspective(cgmath::Deg(90.0), aspect, 0.01, FAR_PLANE);
-    let shadow_projection = cgmath::perspective(cgmath::Deg(90.0), aspect, 0.01, FAR_PLANE);
+    let shadow_projection = cgmath::perspective(cgmath::Deg(90.0), 1., 0.01, FAR_PLANE);
 
     const START_VIEW_HEIGHT: f32 = 55f32;
 
