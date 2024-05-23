@@ -1,19 +1,15 @@
 use clap::Parser;
-use image::codecs::jpeg::JpegEncoder;
-use image::{self, ImageEncoder};
+use image::{self};
 use std::path::PathBuf;
 
 mod draw_triangles;
 mod marching_cubes;
-mod nearest_points;
+mod process_points;
 mod surface_nets;
 mod utils;
 
-use nearest_points::by_nearest_points;
-use utils::{
-    spherical_to_cartesian, text_coords_to_spherical, CartesianCoordinate, NearPointAlgorithm,
-    OutputType,
-};
+use process_points::process_points;
+use utils::{spherical_to_cartesian, text_coords_to_spherical, Algorithm, CartesianCoordinate};
 
 // CLI Parameters
 // -----------
@@ -23,47 +19,39 @@ struct Args {
     // Input depth map file path
     #[arg(name = "Input file path (depth map)", short = 'i', long = "input")]
     input_path: PathBuf,
-    // Output normal map file path
-    #[arg(name = "Output file path (normal map)", short = 'o', long = "output")]
-    output_path: PathBuf,
-    // How many nearest neighbors to consider
+    // Algorithm used for surface reconstruction
     #[arg(
-        name = "Num of nearest neighbors to consider",
-        short = 'k',
-        long = "k-nearest",
-        default_value_t = 80usize
-    )]
-    k_nearest: usize,
-    // Whether to output normals or absolute normals
-    #[arg(
-        name = "Output color",
-        short = 'c',
-        long = "color",
-        default_value = "shaded"
-    )]
-    output_color: OutputType,
-    #[arg(
-        name = "Nearest point algorithm",
+        name = "Surface construction algorithm",
         short = 'a',
-        long = "nearest-algorithm",
-        default_value = "within_radius"
+        long = "algorithm"
     )]
-    algorithm: NearPointAlgorithm,
+    algorithm: Algorithm,
+    // Input depth map file path
+    #[arg(
+        name = "Voxel size",
+        short = 'v',
+        long = "voxel_size",
+        default_value = "25"
+    )]
+    voxel_size: usize,
+    // Amount of smoothing steps used for surface nets algorithm
+    #[arg(
+        name = "Smoothing passes",
+        short = 's',
+        long = "smoothing_passes",
+        default_value = "2"
+    )]
+    smoothing_steps: usize,
 }
 
 fn main() {
     let args = Args::parse();
-    if args.k_nearest <= 0 {
-        panic!("Number of nearest neighbors must be greater than 0");
-    }
     // check if output directory exists?
     let img = image::open(args.input_path)
         .expect("File not found!")
         .into_luma16();
 
     let (img_width, img_height) = img.dimensions();
-
-    let mut new_img = image::ImageBuffer::<image::Rgb<u8>, _>::new(img_width, img_height);
 
     let num_points = img_width * img_height;
 
@@ -78,26 +66,10 @@ fn main() {
         coordinates.push(cartesian);
     }
 
-    let res_nearest = by_nearest_points(
+    process_points(
         &coordinates,
-        args.k_nearest,
         args.algorithm,
-        args.output_color,
-    );
-
-    for (x, y, rgb) in res_nearest {
-        new_img.put_pixel(x, y, rgb);
-    }
-
-    let writer = std::fs::File::create(&args.output_path).expect("Failed to create file");
-    let encoder = JpegEncoder::new_with_quality(writer, 100);
-
-    encoder
-        .write_image(&new_img, img_width, img_height, image::ColorType::Rgb8)
-        .expect("Error writing image");
-
-    println!(
-        "File has been saved to {}",
-        args.output_path.to_str().unwrap()
+        args.voxel_size,
+        args.smoothing_steps,
     );
 }

@@ -1,13 +1,16 @@
 use clap::ValueEnum;
 use core::panic;
-use image::Rgb;
 use kd_tree::KdPoint;
 use nalgebra::SVector;
 use std::f32::consts::PI;
 
 pub type Vec3 = SVector<f32, 3>;
 
-pub type ProcessedPixels = Vec<(u32, u32, Rgb<u8>)>;
+#[derive(Copy, Clone, Debug)]
+pub enum Algorithm {
+    MarchingCubes,
+    SurfaceNets,
+}
 
 #[derive(Copy, Clone)]
 pub struct TextCoords {
@@ -47,61 +50,22 @@ pub struct Triangle {
     pub normal: [f32; 3],
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum OutputType {
-    Shaded,
-    Normals,
-    NormalsFull,
-}
-impl ValueEnum for OutputType {
+impl ValueEnum for Algorithm {
     fn from_str(input: &str, _ignore_case: bool) -> Result<Self, String> {
         match input {
-            "shaded" => Ok(OutputType::Shaded),
-            "normals" => Ok(OutputType::Normals),
+            "marching_cubes" => Ok(Algorithm::MarchingCubes),
+            "surface_nets" => Ok(Algorithm::SurfaceNets),
             _ => Err(format!("Invalid output color: {}", input)),
         }
     }
     fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
         match self {
-            OutputType::Shaded => Some(clap::builder::PossibleValue::new("shaded")),
-            OutputType::Normals => Some(clap::builder::PossibleValue::new("normals")),
-            OutputType::NormalsFull => Some(clap::builder::PossibleValue::new("normals_full")),
+            Algorithm::MarchingCubes => Some(clap::builder::PossibleValue::new("marching_cubes")),
+            Algorithm::SurfaceNets => Some(clap::builder::PossibleValue::new("surface_nets")),
         }
     }
     fn value_variants<'a>() -> &'a [Self] {
-        &[
-            OutputType::Shaded,
-            OutputType::Normals,
-            OutputType::NormalsFull,
-        ]
-    }
-}
-#[derive(Copy, Clone, Debug)]
-pub enum NearPointAlgorithm {
-    KNearest,
-    WithinRadius,
-}
-impl ValueEnum for NearPointAlgorithm {
-    fn from_str(input: &str, _ignore_case: bool) -> Result<Self, String> {
-        match input {
-            "k_nearest" => Ok(NearPointAlgorithm::KNearest),
-            "within_radius" => Ok(NearPointAlgorithm::WithinRadius),
-            _ => Err(format!("Invalid algorithm: {}", input)),
-        }
-    }
-    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
-        match self {
-            NearPointAlgorithm::KNearest => Some(clap::builder::PossibleValue::new("k_nearest")),
-            NearPointAlgorithm::WithinRadius => {
-                Some(clap::builder::PossibleValue::new("within_radius"))
-            }
-        }
-    }
-    fn value_variants<'a>() -> &'a [Self] {
-        &[
-            NearPointAlgorithm::KNearest,
-            NearPointAlgorithm::WithinRadius,
-        ]
+        &[Algorithm::MarchingCubes, Algorithm::SurfaceNets]
     }
 }
 

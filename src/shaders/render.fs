@@ -16,7 +16,9 @@ vec3 illuminate() {
 
   float dist_to_light = min(1., length(lightDir) / max_distance);
 
-  float light_level = max(0., dot(vNormal, normalize(lightDir))) * (1. - dist_to_light);
+  float light_level = max(0., dot(vNormal, normalize(lightDir)));
+
+  light_level *= (1. - dist_to_light);
   return vec3(light_level);
 }
 

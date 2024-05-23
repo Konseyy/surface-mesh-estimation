@@ -358,11 +358,7 @@ pub fn by_marching_cubes(
                     let a = vert2_real - vert1_real;
                     let b = vert3_real - vert1_real;
 
-                    let norm_x = a.y * b.z - a.z * b.y;
-                    let norm_y = a.z * b.x - a.x * b.z;
-                    let norm_z = a.x * b.y - a.y * b.x;
-
-                    let normal_vec = Vec3::new(norm_x, norm_y, norm_z).normalize();
+                    let normal_vec = a.cross(&b).normalize();
 
                     let tri = Triangle {
                         vertices: [
