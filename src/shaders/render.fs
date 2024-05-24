@@ -30,7 +30,7 @@ void main() {
     return;
   }
 
-  vec4 shadow_map_col = textureCube(shadow_map, vPosition - light_pos);
+  vec4 shadow_map_col = texture(shadow_map, vPosition - light_pos);
 
   float shadow_depth = shadow_map_col.r;
   float curr_depth = length(vPosition - light_pos) / far_plane;

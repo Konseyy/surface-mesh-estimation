@@ -1,13 +1,27 @@
-# Equirect normal maps from depth maps
+# Mesh illumination from depth maps
 
-This is a CLI tool for shading 3D scenes given in equirectangular depth map format.
+This is a CLI tool for shading 3D scene meshes generated from point clouds given in equirectangular depth map format.
 # Example
 
 ```
-$ cargo run -r -- -i ./example/inputs/in1.png -o my_output.jpg -k 50
+$ cargo run -r -- -i ./example/inputs/in1.png -a marching_cubes
 ```
 
-This will generate a normal map from the `./example/inputs/in1.png` equirectangular depth map and save it as `./my_output.jpg`.
+This will open a window with the generated mesh and lighting
+<br>
+There are several keyboard shortcuts you can use while the program window is focused:
+- `Esc` to exit the program
+- `N` to toggle showing the normals of the mesh
+- `Space` to toggle automatic camera rotation
+- `E` to move the camera up
+- `Q` to move the camera down
+- `W` to move the camera forwards
+- `S` to move the camera backwards
+- `A` to rotate the camera left
+- `D` to rotate the camera right
+- `T` to reset the camera to the starting position
+- `Y` to reset the camera the positio of the light source
+- `F` to toggle showing shadows
 
 ### Disclaimer
 
