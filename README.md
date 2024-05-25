@@ -1,15 +1,15 @@
-# Mesh illumination from depth maps
+# Mesh illumination from equirectunglar depth maps
 
 This is a CLI tool for shading 3D scene meshes generated from point clouds given in equirectangular depth map format.
+
 # Example
 
 ```
 $ cargo run -r -- -i ./example/inputs/in1.png -a marching_cubes
 ```
 
-This will open a window with the generated mesh and lighting
-<br>
-There are several keyboard shortcuts you can use while the program window is focused:
+This will open a window with the generated mesh and lighting <br> There are several keyboard shortcuts you can use while the program window is focused:
+
 - `Esc` to exit the program
 - `N` to toggle showing the normals of the mesh
 - `Space` to toggle automatic camera rotation
