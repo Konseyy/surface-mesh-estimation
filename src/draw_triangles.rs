@@ -201,6 +201,8 @@ pub fn draw_triangles(triangles: Vec<Triangle>, max_light_distance: f32) {
                     if !ticks_paused {
                         ms_since_start += start_time.elapsed().as_millis() as f32;
                     }
+                    let frame_time = start_time.elapsed().as_millis() as f32;
+                    println!("fps {}", 1000. / frame_time);
                     start_time = std::time::Instant::now();
 
                     if !rotation_paused {

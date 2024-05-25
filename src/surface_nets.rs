@@ -1,4 +1,3 @@
-use cgmath::num_traits::real;
 use kd_tree::KdTree;
 use rayon::{
     iter::{IntoParallelRefIterator, ParallelIterator},

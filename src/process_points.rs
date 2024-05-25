@@ -1,18 +1,10 @@
-use std::time::Duration;
-
 use crate::{
     draw_triangles::draw_triangles,
     marching_cubes::by_marching_cubes,
     surface_nets::by_surface_nets,
-    utils::{Algorithm, CartesianCoordinate, TextCoords},
+    utils::{Algorithm, CartesianCoordinate},
 };
 use kd_tree::KdTree;
-pub struct ProcessedNearestPoint {
-    pub text_coords: TextCoords,
-    pub rgb: [u8; 3],
-    pub tree_search_elapsed: Duration,
-    pub plane_fit_elapsed: Duration,
-}
 
 pub fn process_points(
     coordinates: &Vec<CartesianCoordinate>,

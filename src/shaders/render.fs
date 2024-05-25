@@ -37,9 +37,9 @@ void main() {
 
   vec3 c = illuminate();
 
-  if(shadow_depth > curr_depth - EPSILON || show_shadows < 0.5) {
-    color = vec4(c, 1.0);
-  } else {
+  if(shadow_depth + EPSILON < curr_depth && show_shadows > 0.5) {
     color = vec4(c * .2, 1.0);
+  } else {
+    color = vec4(c, 1.0);
   }
 }
