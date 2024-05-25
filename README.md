@@ -8,6 +8,10 @@ This is a CLI tool for shading 3D scene meshes generated from point clouds given
 $ cargo run -r -- -i ./example/inputs/in1.png -a marching_cubes
 ```
 
+
+https://github.com/Konseyy/surface-mesh-estimation/assets/47418038/7f1b2a93-4af3-4457-afc3-da6f25dcd0cd
+
+
 This will open a window with the generated mesh and lighting <br> There are several keyboard shortcuts you can use while the program window is focused:
 
 - `Esc` to exit the program
